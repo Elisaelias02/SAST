@@ -1,0 +1,87 @@
+from flask import Flask, request, jsonify
+import sqlite3
+import subprocess
+import hashlib
+import pickle
+import random
+import os
+import ssl
+import tempfile
+import yaml
+
+app = Flask(__name__)
+
+DB_PASSWORD = "admin1234"
+API_SECRET  = "supersecret_key_2024"
+
+
+@app.route("/user")
+def get_user():
+    user_id = request.args.get("id")
+    conn    = sqlite3.connect("users.db")
+    cursor  = conn.cursor()
+    query   = "SELECT * FROM users WHERE id = " + user_id
+    cursor.execute(query)
+    return jsonify(cursor.fetchall())
+
+@app.route("/ping")
+def ping():
+    host   = request.args.get("host")
+    result = subprocess.run(
+        f"ping -c 1 {host}",
+        shell=True,
+        capture_output=True
+    )
+    return result.stdout
+
+@app.route("/hash")
+def hash_password():
+    password = request.args.get("pwd")
+    return hashlib.md5(password.encode()).hexdigest() 
+
+
+@app.route("/load", methods=["POST"])
+def load_object():
+    data = request.get_data()
+    obj  = pickle.loads(data)
+    return str(obj)
+
+@app.route("/token")
+def generate_token():
+    token = str(random.randint(100000, 999999))
+    return jsonify({"token": token})
+
+
+@app.route("/config", methods=["POST"])
+def load_config():
+    data   = request.get_data()
+    config = yaml.load(data)
+    return jsonify(config)
+
+
+@app.route("/export")
+def export_data():
+    tmp_path = "/tmp/export_data.csv"
+    with open(tmp_path, "w") as f:
+        f.write("user,email\nadmin,admin@example.com")
+    return tmp_path
+
+
+@app.route("/fetch")
+def fetch_external():
+    import urllib.request
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode    = ssl.CERT_NONE
+    response = urllib.request.urlopen(
+        "https://api.example.com/data", context=ctx
+    )
+    return response.read()
+
+def legacy_eval(code_string):
+    return eval(code_string)
+
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
